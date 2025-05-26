@@ -121,6 +121,7 @@ class ScreenRecorder {
     this.chunks = [];
     this.stream = null;
     this.audioTrack = null;
+    this.ignoreHandleStop = false;
   }
 
   init(settings) {
@@ -161,45 +162,42 @@ class ScreenRecorder {
       mimeType: this.settings.mimeType,
       videoKeyFrameIntervalDuration: 1000,
     };
+    const retryRecorder = (e) => {
+      if (!this.stream) {
+        console.error("MediaRecorder error + stream is not available.", e);
+        return;
+      }
+      this.ignoreHandleStop = true;
+      this.mRecorder.stop();
+
+      mimeTypeNum = (mimeTypeNum + 1) % mimeTypes.length;
+      const nextType = mimeTypes[mimeTypeNum];
+      if (!nextType) {
+        console.error("No more mime types to try, stopping recording.");
+        this.isRecording = false;
+        this.clearDurationInterval();
+        return;
+      }
+      console.error(`MediaRecorder error; retrying with ${nextType}`, e);
+      this.settings.mimeType = nextType;
+      mRecorderSettings.mimeType = nextType;
+
+      this.mRecorder = new MediaRecorder(this.stream, mRecorderSettings);
+      this.mRecorder.ondataavailable = this._handleDataAvailable;
+      this.mRecorder.onstop = this._handleStop;
+      this.mRecorder.onerror = retryRecorder;
+      this.mRecorder.start(1000);
+    };
 
     this.stream = combinedStream;
     this.mRecorder = new MediaRecorder(combinedStream, mRecorderSettings);
 
     this.mRecorder.ondataavailable = this._handleDataAvailable;
     this.mRecorder.onstop = this._handleStop;
-    this.mRecorder.onerror = (ev) => {
-      const nextType = mimeTypes[mimeTypeNum + 1];
-      console.error(
-        `MediaRecorder error (depth = ${mimeTypeNum}; restarting with ${nextType}):`,
-        ev.error,
-      );
-      this.settings.mimeType = nextType;
-      mRecorderSettings.mimeType = this.settings.mimeType;
-      mimeTypeNum++;
-      setTimeout(() => {
-        this.mRecorder = new MediaRecorder(combinedStream, mRecorderSettings);
-        this.mRecorder.ondataavailable = this._handleDataAvailable;
-        this.mRecorder.onstop = this._handleStop;
-        this.mRecorder.start(1000);
-      }, 1);
-    };
+    this.mRecorder.onerror = retryRecorder;
     this.isRecording = true;
     this.mRecorder.start(1000);
     this.trackDuration();
-
-    let checks = 0;
-    const int = setInterval(() => {
-      if (checks < 50) {
-        checks++;
-        console.log(
-          this.settings.mimeType,
-          this.mRecorder.state,
-          this.mRecorder.stream.active,
-        );
-      } else {
-        clearInterval(int);
-      }
-    }, 500);
   }
 
   stop() {
@@ -349,10 +347,14 @@ class ScreenRecorder {
   };
 
   recorded = false;
+  ignoreHandleStop = false;
   _handleStop = () => {
+    if (this.ignoreHandleStop) {
+      this.ignoreHandleStop = false;
+      return;
+    }
     const blob = new Blob(this.chunks, { type: this.settings.mimeType });
     const url = URL.createObjectURL(blob);
-    console.log("offscreen: raw blob byteLength =", blob.size);
     this.videoBlob = blob;
     this.videoUrl = url;
     this.videoStream.getTracks().forEach((track) => track.stop());
@@ -426,7 +428,6 @@ browser.runtime.onMessage.addListener((message, _, respond) => {
           respond({ status: "empty" });
         }
         convertBlobToBase64(data.blob).then(({ result, size }) => {
-          console.log("offscreen: base64 payload length:", size);
           if (size > hardLimit) {
             respond({ status: "parts" });
             result.forEach((chunk, i) => {

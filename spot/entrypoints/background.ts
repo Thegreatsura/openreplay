@@ -959,7 +959,6 @@ export default defineBackground(() => {
           target: { tabId: tab.id },
           files: ["/content-scripts/content.js"],
         });
-        console.log("restoring content at", tab);
       } catch (e) {
         console.error("Error restoring content script", e);
       }
@@ -1147,7 +1146,6 @@ export default defineBackground(() => {
                 state: getRecState(),
                 activeTabId: null,
               };
-              console.log(tabId, "activation for new");
               attachDebuggerToTab(tabId);
               void sendToActiveTab(msg);
             });
