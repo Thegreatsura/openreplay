@@ -1,3 +1,5 @@
+import { toast } from 'react-toastify';
+
 class NodeCounter {
   private parent: NodeCounter | null = null;
 
@@ -15,6 +17,11 @@ class NodeCounter {
   newChild(): NodeCounter {
     const child = new NodeCounter();
     this.children.push(child);
+    if (this.children.length === 5000) {
+      toast.warn('An element with 5,000+ children was found. This can slow down rendering and degrade performance.', {
+        autoClose: false,
+      });
+    }
     child.parent = this;
     this.bubbleCount(1);
     return child;
