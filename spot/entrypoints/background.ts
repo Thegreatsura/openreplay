@@ -603,6 +603,7 @@ export default defineBackground(() => {
         recording: REC_STATE.stopped,
         audioPerm: recordingState.audioPerm,
       };
+      closeOffscreenDocument();
     }
     if (request.type === messages.content.from.restart) {
       void browser.runtime.sendMessage({
@@ -924,6 +925,7 @@ export default defineBackground(() => {
                 })
                 .finally(() => {
                   finalSpotObj = defaultSpotObj;
+                  closeOffscreenDocument();
                 });
             })
             .catch((e) => {
@@ -941,7 +943,6 @@ export default defineBackground(() => {
 
   void browser.runtime.setUninstallURL("https://forms.gle/sMo8da2AvrPg5o7YA");
   browser.runtime.onInstalled.addListener(async ({ reason }) => {
-    await void initializeOffscreenDocument();
     // Also fired on update and browser_update
     if (reason === "install") {
       await browser.tabs.create({
@@ -950,32 +951,35 @@ export default defineBackground(() => {
       });
     }
     for (const tab of await chrome.tabs.query({})) {
-      if (tab.url?.match(/(chrome|chrome-extension):\/\//gi) || !tab.id) {
+      if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('about:') || !tab.id) {
         continue;
       }
       try {
-        const res = await chrome.scripting.executeScript({
+        await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           files: ["/content-scripts/content.js"],
         });
-        console.log("restoring content at", res);
+        console.log("restoring content at", tab);
       } catch (e) {
         console.error("Error restoring content script", e);
       }
     }
+    closeOffscreenDocument();
     await checkTokenValidity();
   });
 
-  async function initializeOffscreenDocument() {
-    const existingContexts = await browser.runtime.getContexts({
-      contextTypes: [browser.runtime.ContextType.OFFSCREEN_DOCUMENT],
-    });
+  async function closeOffscreenDocument() {
+    try {
+      await browser.offscreen.closeDocument();
+    } catch (e) {
+      console.error("Spot: error closing offscreen document", e);
+    }
+  };
 
-    if (existingContexts.length) return;
-    const offscreenDocument = existingContexts.find(
-      (c: { contextType: string }) => c.contextType === "OFFSCREEN_DOCUMENT",
-    );
-    if (offscreenDocument) {
+  async function initializeOffscreenDocument() {
+    console.trace('called initializeOffscreenDocument')
+    const hasDoc = await browser.offscreen.hasDocument()
+    if (hasDoc) {
       try {
         await browser.offscreen.closeDocument();
       } catch (e) {
@@ -994,7 +998,8 @@ export default defineBackground(() => {
     }
 
     return;
-  }
+  };
+
   async function sendToActiveTab(
     message: {
       type: string;
@@ -1068,6 +1073,7 @@ export default defineBackground(() => {
     getRecState: () => string,
     setOnStop: (hook: any) => void,
   ) {
+    await initializeOffscreenDocument();
     let activeTabs = await browser.tabs.query({
       active: true,
       currentWindow: true,

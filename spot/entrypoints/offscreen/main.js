@@ -3,33 +3,69 @@
  * */
 const hardLimit = 24 * 1024 * 1024; // 24 MB
 
+const mimeTypes = [
+  // best support for backend
+  'video/mp4; codecs="avc1.42E01E, mp4a.40.2"',
+  // best performance
+  "video/webm;codecs=vp8,opus",
+  // fast trimming if we "pretend" that its a webm
+  "video/webm;codecs=h264",
+  "video/webm;codecs=avc1",
+  "video/webm;codecs=av1",
+  "video/mp4;codecs=avc1",
+  "video/webm;codecs=vp9,opus",
+];
+
 function getRecordingSettings(qualityValue) {
   const settingsMap = {
-    "4k": { audioBitsPerSecond: 192000, videoBitsPerSecond: 40000000, width: 4096, height: 2160 },
-    "1080p": { audioBitsPerSecond: 192000, videoBitsPerSecond: 8000000, width: 1920, height: 1080 },
+    "4k": {
+      audioBitsPerSecond: 192000,
+      videoBitsPerSecond: 40000000,
+      width: 4096,
+      height: 2160,
+    },
+    "1080p": {
+      audioBitsPerSecond: 192000,
+      videoBitsPerSecond: 8000000,
+      width: 1920,
+      height: 1080,
+    },
     // @default
-    "720p": { audioBitsPerSecond: 128000, videoBitsPerSecond: 2500000, width: 1280, height: 720 },
-    "480p": { audioBitsPerSecond: 96000, videoBitsPerSecond: 2500000, width: 854, height: 480 },
-    "360p": { audioBitsPerSecond: 96000, videoBitsPerSecond: 1000000, width: 640, height: 360 },
-    "240p": { audioBitsPerSecond: 64000, videoBitsPerSecond: 500000, width: 426, height: 240 },
+    "720p": {
+      audioBitsPerSecond: 128000,
+      videoBitsPerSecond: 2500000,
+      width: 1280,
+      height: 720,
+    },
+    "480p": {
+      audioBitsPerSecond: 96000,
+      videoBitsPerSecond: 2500000,
+      width: 854,
+      height: 480,
+    },
+    "360p": {
+      audioBitsPerSecond: 96000,
+      videoBitsPerSecond: 1000000,
+      width: 640,
+      height: 360,
+    },
+    "240p": {
+      audioBitsPerSecond: 64000,
+      videoBitsPerSecond: 500000,
+      width: 426,
+      height: 240,
+    },
   };
 
-  const defaultSettings = { audioBitsPerSecond: 128000, videoBitsPerSecond: 5000000, width: 1920, height: 1080 };
-  const { audioBitsPerSecond, videoBitsPerSecond, width, height } = settingsMap[qualityValue] || defaultSettings;
+  const defaultSettings = {
+    audioBitsPerSecond: 128000,
+    videoBitsPerSecond: 5000000,
+    width: 1920,
+    height: 1080,
+  };
+  const { audioBitsPerSecond, videoBitsPerSecond, width, height } =
+    settingsMap[qualityValue] || defaultSettings;
   const duration = 3 * 60 * 1000; // 3 minutes
-
-  const mimeTypes = [
-    // best support for backend
-    'video/mp4; codecs="avc1.42E01E, mp4a.40.2"',
-    // fast trimming if we "pretend" that its a webm
-    "video/webm;codecs=h264",
-    "video/webm;codecs=avc1",
-    "video/webm;codecs=av1",
-    "video/mp4;codecs=avc1",
-    "video/webm;codecs=vp8,opus",
-    // best performance
-    "video/webm;codecs=vp9,opus",
-  ];
 
   let mimeType = mimeTypes[0];
 
@@ -91,6 +127,7 @@ class ScreenRecorder {
     this.settings = settings;
   }
 
+  /** number | null */
   durationInt = null;
   trackDuration = () => {
     this.durationInt = setInterval(() => {
@@ -99,8 +136,10 @@ class ScreenRecorder {
   };
 
   clearDurationInterval = () => {
-    clearInterval(this.durationInt);
-    this.durationInt = null;
+    if (this.durationInt) {
+      clearInterval(this.durationInt);
+      this.durationInt = null;
+    }
   };
 
   async startRecording(type, streamId, microphone = false, audioId) {
@@ -115,29 +154,52 @@ class ScreenRecorder {
       audioId,
     );
 
-    this.stream = combinedStream;
-    this.mRecorder = new MediaRecorder(combinedStream, {
-      mimeType: this.settings.mimeType,
+    let mimeTypeNum = 0;
+    const mRecorderSettings = {
       audioBitsPerSecond: this.settings.audioBitsPerSecond,
       videoBitsPerSecond: this.settings.videoBitsPerSecond,
+      mimeType: this.settings.mimeType,
       videoKeyFrameIntervalDuration: 1000,
-    });
+    };
+
+    this.stream = combinedStream;
+    this.mRecorder = new MediaRecorder(combinedStream, mRecorderSettings);
 
     this.mRecorder.ondataavailable = this._handleDataAvailable;
     this.mRecorder.onstop = this._handleStop;
-    // check how's steam doing and video size
+    this.mRecorder.onerror = (ev) => {
+      const nextType = mimeTypes[mimeTypeNum + 1];
+      console.error(
+        `MediaRecorder error (depth = ${mimeTypeNum}; restarting with ${nextType}):`,
+        ev.error,
+      );
+      this.settings.mimeType = nextType;
+      mRecorderSettings.mimeType = this.settings.mimeType;
+      mimeTypeNum++;
+      setTimeout(() => {
+        this.mRecorder = new MediaRecorder(combinedStream, mRecorderSettings);
+        this.mRecorder.ondataavailable = this._handleDataAvailable;
+        this.mRecorder.onstop = this._handleStop;
+        this.mRecorder.start(1000);
+      }, 1);
+    };
+    this.isRecording = true;
+    this.mRecorder.start(1000);
+    this.trackDuration();
+
     let checks = 0;
     const int = setInterval(() => {
       if (checks < 50) {
         checks++;
-        console.log(this.mRecorder.state, this.mRecorder.stream.active);
+        console.log(
+          this.settings.mimeType,
+          this.mRecorder.state,
+          this.mRecorder.stream.active,
+        );
       } else {
         clearInterval(int);
       }
-    }, 500)
-    this.mRecorder.start();
-    this.isRecording = true;
-    this.trackDuration();
+    }, 500);
   }
 
   stop() {
@@ -231,14 +293,14 @@ class ScreenRecorder {
             },
           }));
     } catch (e) {
-      console.error('get stream error:', e);
+      console.error("get stream error:", e);
       throw e;
     }
     try {
       const hasAudioPerms = await navigator.permissions.query({
         name: "microphone",
       });
-      if (hasAudioPerms.state === "denied") {
+      if (hasAudioPerms.state !== "granted") {
         useMicrophone = false;
       }
       if (!useMicrophone) {
@@ -251,12 +313,12 @@ class ScreenRecorder {
         this.audioTrack = microphoneStream.getAudioTracks()[0];
       }
     } catch (e) {
-      console.error('get audio error', e);
+      console.error("get audio error", e);
     }
 
     const existingAudioTracks = this.videoStream.getAudioTracks();
     if (existingAudioTracks.length > 0) {
-      existingAudioTracks.forEach(track => track.enabled = true);
+      existingAudioTracks.forEach((track) => (track.enabled = true));
     }
 
     return new MediaStream([
@@ -290,7 +352,7 @@ class ScreenRecorder {
   _handleStop = () => {
     const blob = new Blob(this.chunks, { type: this.settings.mimeType });
     const url = URL.createObjectURL(blob);
-
+    console.log("offscreen: raw blob byteLength =", blob.size);
     this.videoBlob = blob;
     this.videoUrl = url;
     this.videoStream.getTracks().forEach((track) => track.stop());
@@ -335,10 +397,10 @@ browser.runtime.onMessage.addListener((message, _, respond) => {
         .then(() => {
           respond({ success: true, time: Date.now() });
         })
-        .catch(e => {
+        .catch((e) => {
           console.error(e);
           respond({ success: false, time: Date.now() });
-        })
+        });
       return true;
     }
     if (message.type === "offscr:get-ts") {
@@ -354,6 +416,9 @@ browser.runtime.onMessage.addListener((message, _, respond) => {
       recorder.clearAll();
     }
     if (message.type === "offscr:stop-recording") {
+      if (recorder.mRecorder && recorder.mRecorder.state === "recording") {
+        recorder.mRecorder.requestData();
+      }
       recorder.stop();
       const duration = recorder.duration;
       recorder.getVideoData().then((data) => {
@@ -361,6 +426,7 @@ browser.runtime.onMessage.addListener((message, _, respond) => {
           respond({ status: "empty" });
         }
         convertBlobToBase64(data.blob).then(({ result, size }) => {
+          console.log("offscreen: base64 payload length:", size);
           if (size > hardLimit) {
             respond({ status: "parts" });
             result.forEach((chunk, i) => {
