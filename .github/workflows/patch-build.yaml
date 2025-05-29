@@ -98,7 +98,7 @@ jobs:
             local current_version new_version
 
             current_version=$(yq eval '.AppVersion' "$chart_path")
-            new_version=$(echo "$current_version" | awk -F. '{$NF += 1; print $1"."$2"."$3}')
+            new_version=$(echo "$current_version" | awk -F. '{$NF += 2; print $1"."$2"."$3}')
             echo "$new_version"
         }
 
