@@ -157,12 +157,13 @@ jobs:
             local version=$2
             local chart_path="$WORKING_DIR/scripts/helmcharts/openreplay/charts/$service/Chart.yaml"
 
+            # Ensure we're in the original working directory/repository
             cd "$WORKING_DIR"
             yq eval ".AppVersion = \"$version\"" -i "$chart_path"
-            cd -
             git add "$chart_path"
             git commit -m "Increment $service chart version to $version"
             git push --set-upstream origin "$BRANCH_NAME"
+            cd -
         }
 
         # Main execution
