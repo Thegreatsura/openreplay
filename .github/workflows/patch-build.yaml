@@ -147,16 +147,16 @@ jobs:
           git push --set-upstream origin $BRANCH_NAME
         done
 
-    - name: Create Pull Request
-      uses: repo-sync/pull-request@v2
-      with:
-        github_token: ${{ secrets.ACTIONS_COMMMIT_TOKEN }}
-        source_branch: ${{ env.BRANCH_NAME }}
-        destination_branch: "main"
-        pr_title: "Updated patch build from main ${{ env.HEAD_COMMIT_ID }}"
-        pr_body: | 
-          This PR updates the Helm chart version after building the patch from $HEAD_COMMIT_ID.
-          Once this PR is merged, tag update job will run automatically.
+    # - name: Create Pull Request
+    #   uses: repo-sync/pull-request@v2
+    #   with:
+    #     github_token: ${{ secrets.ACTIONS_COMMMIT_TOKEN }}
+    #     source_branch: ${{ env.BRANCH_NAME }}
+    #     destination_branch: "main"
+    #     pr_title: "Updated patch build from main ${{ env.HEAD_COMMIT_ID }}"
+    #     pr_body: | 
+    #       This PR updates the Helm chart version after building the patch from $HEAD_COMMIT_ID.
+    #       Once this PR is merged, tag update job will run automatically.
 
     # - name: Debug Job
     #   if: ${{ failure() }}
