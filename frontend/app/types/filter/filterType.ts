@@ -248,7 +248,7 @@ export enum FilterKey {
   AVG_MEMORY_USAGE = 'avgMemoryUsage',
   FETCH_FAILED = 'fetchFailed',
 
-  FETCH = 'fetch',
+  FETCH = 'REQUEST',
   FETCH_URL = 'fetchUrl',
   FETCH_STATUS_CODE = 'fetchStatusCode',
   FETCH_METHOD = 'fetchMethod',
