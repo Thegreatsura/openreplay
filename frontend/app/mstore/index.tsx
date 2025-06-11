@@ -40,6 +40,7 @@ const sessionStore = new SessionStore();
 const searchStore = new SearchStore();
 const searchStoreLive = new SearchStoreLive();
 const settingsStore = new SettingsStore();
+const filterStore = new FilterStore();
 
 function copyToClipboard(text: string) {
   const textArea = document.createElement('textarea');
@@ -134,7 +135,7 @@ export class RootStore {
     this.aiFiltersStore = new AiFiltersStore();
     this.spotStore = new SpotStore();
     this.loginStore = new LoginStore();
-    this.filterStore = new FilterStore();
+    this.filterStore = filterStore;
     this.uiPlayerStore = new UiPlayerStore();
     this.issueReportingStore = new IssueReportingStore();
     this.customFieldStore = new CustomFieldStore();
@@ -178,4 +179,5 @@ export {
   projectStore,
   client,
   settingsStore,
+  filterStore,
 };
