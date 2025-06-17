@@ -7,6 +7,8 @@ import Filter from './types/filter';
 import Widget from './types/widget';
 import Dashboard from './types/dashboard';
 import { calculateGranularities } from '@/components/Dashboard/components/WidgetDateRange/RangeGranularity';
+import { HEATMAP } from '@/constants/card';
+import { sessionStore } from 'App/mstore';
 
 interface DashboardFilter {
   query?: string;
@@ -59,20 +61,20 @@ export default class DashboardStore {
       () => this.period,
       (period) => {
         this.createDensity(period.getDuration());
-      }
-    )
+      },
+    );
   }
 
   resetDensity = () => {
     this.createDensity(this.period.getDuration());
-  }
+  };
 
   createDensity = (duration: number) => {
     const densityOpts = calculateGranularities(duration);
     const defaultOption = densityOpts[densityOpts.length - 2];
 
-    this.setDensity(defaultOption.key)
-  }
+    this.setDensity(defaultOption.key);
+  };
 
   setDensity = (density: number) => {
     this.selectedDensity = density;
@@ -365,7 +367,7 @@ export default class DashboardStore {
 
   getDashboardById = async (dashboardId: string) => {
     if (!this.listFetched) {
-      const maxWait = (5*1000)/250;
+      const maxWait = (5 * 1000) / 250;
       let count = 0;
       await new Promise((resolve) => {
         const interval = setInterval(() => {
@@ -379,7 +381,7 @@ export default class DashboardStore {
           }
           count++;
         }, 250);
-      })
+      });
     }
     const dashboard = this.dashboards.find((d) => d.dashboardId == dashboardId);
 
@@ -536,9 +538,18 @@ export default class DashboardStore {
         const data = await metricService.getMetricChartData(
           metric,
           params,
-          isSaved
+          isSaved,
         );
-        const res = metric.setData(data, period, isComparison, data.density)
+        if (metric.metricType === HEATMAP && data.sessionId) {
+          const sessionResp = await sessionStore.fetchSessionInfo(
+            data.sessionId,
+          );
+          data.domURL = sessionResp?.domURL || [];
+          data.events = [];
+        }
+
+        const res = metric.setData(data, period, isComparison, data.density);
+
         resolve(res);
       } catch (error) {
         reject(error);
